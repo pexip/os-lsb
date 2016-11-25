@@ -25,32 +25,36 @@ import subprocess
 import os
 import re
 import warnings
+import csv
 
-# XXX: Update as needed
-# This should really be included in apt-cache policy output... it is already
-# in the Release file...
-RELEASE_CODENAME_LOOKUP = {
-    '1.1' : 'buzz',
-    '1.2' : 'rex',
-    '1.3' : 'bo',
-    '2.0' : 'hamm',
-    '2.1' : 'slink',
-    '2.2' : 'potato',
-    '3.0' : 'woody',
-    '3.1' : 'sarge',
-    '4.0' : 'etch',
-    '5.0' : 'lenny',
-    '6.0' : 'squeeze',
-    '7'   : 'wheezy',
-    '8'   : 'jessie',
-    }
+def get_distro_info(origin='Debian'):
+    try:
+        FileNotFoundException = FileNotFoundError
+    except NameError:
+        # There is no FileNotFoundError in python2
+        FileNotFoundException = IOError
 
-TESTING_CODENAME = 'unknown.new.testing'
+    try:
+        csvfile = open('/usr/share/distro-info/%s.csv' % origin.lower())
+    except FileNotFoundException:
+        # Unknown distro, fallback to Debian
+        csvfile = open('/usr/share/distro-info/debian.csv')
 
-RELEASES_ORDER = list(RELEASE_CODENAME_LOOKUP.items())
-RELEASES_ORDER.sort()
-RELEASES_ORDER = list(list(zip(*RELEASES_ORDER))[1])
-RELEASES_ORDER.extend(['stable', 'testing', 'unstable', 'sid'])
+    reader = csv.DictReader(csvfile)
+    global RELEASE_CODENAME_LOOKUP, RELEASES_ORDER, TESTING_CODENAME
+    RELEASE_CODENAME_LOOKUP = { r['version']: r['series'] for r in reader if r['version']}
+    RELEASES_ORDER = list(RELEASE_CODENAME_LOOKUP.items())
+    RELEASES_ORDER.sort(key=lambda n: float(n[0]))
+    RELEASES_ORDER = list(list(zip(*RELEASES_ORDER))[1])
+
+    if origin.lower() == 'debian':
+        TESTING_CODENAME = 'unknown.new.testing'
+        RELEASES_ORDER.extend(['stable', 'proposed-updates', 'testing', 'testing-proposed-updates', 'unstable', 'sid'])
+
+    csvfile.close()
+
+# Populate default distro info
+get_distro_info()
 
 def lookup_codename(release, unknown=None):
     m = re.match(r'(\d+)\.(\d+)(r(\d+))?', release)
@@ -62,11 +66,6 @@ def lookup_codename(release, unknown=None):
     else:
         shortrelease = '%s' % m.group(1)
     return RELEASE_CODENAME_LOOKUP.get(shortrelease, unknown)
-
-# LSB compliance packages... may grow eventually
-PACKAGES = 'lsb-core lsb-cxx lsb-graphics lsb-desktop lsb-languages lsb-multimedia lsb-printing lsb-security'
-
-modnamere = re.compile(r'lsb-(?P<module>[a-z0-9]+)-(?P<arch>[^ ]+)(?: \(= (?P<version>[0-9.]+)\))?')
 
 def valid_lsb_versions(version, module):
     # If a module is ever released that only appears in >= version, deal
@@ -129,44 +128,7 @@ except NameError:
 
 # This is Debian-specific at present
 def check_modules_installed():
-    # Find which LSB modules are installed on this system
-    C_env = os.environ.copy(); C_env['LC_ALL'] = 'C'
-    output = subprocess.Popen(['dpkg-query','-f',"${Version} ${Provides}\n",'-W'] + PACKAGES.split(),
-                              env=C_env,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              close_fds=True).communicate()[0].decode('utf-8')
-
-    if not output:
-        return []
-
-    modules = set()
-    for line in output.split(os.linesep):
-        if not line:
-           break
-        version, provides = line.split(' ', 1)
-        # Debian package versions can be 3.2-$REV, 3.2+$REV or 3.2~$REV.
-        version = re.split('[-+~]', version, 1)[0]
-        for pkg in provides.split(','):
-            mob = modnamere.search(pkg)
-            if not mob:
-                continue
-
-            mgroups = mob.groupdict()
-            # If no versioned provides...
-            if mgroups.get('version'):
-                module = '%(module)s-%(version)s-%(arch)s' % mgroups
-                modules.add(module)
-            else:
-                module = mgroups['module']
-                for v in valid_lsb_versions(version, module):
-                    mgroups['version'] = v
-                    module = '%(module)s-%(version)s-%(arch)s' % mgroups
-                    modules.add(module)
-
-    modules = list(modules)
-    modules.sort()
-    return modules
+    return []
 
 longnames = {'v' : 'version', 'o': 'origin', 'a': 'suite',
              'c' : 'component', 'l': 'label'}
@@ -188,7 +150,10 @@ def release_index(x):
         if suite in RELEASES_ORDER:
             return int(len(RELEASES_ORDER) - RELEASES_ORDER.index(suite))
         else:
-            return suite
+            try:
+                return float(suite)
+            except ValueError:
+                return 0
     return 0
 
 def compare_release(x, y):
@@ -204,7 +169,7 @@ def compare_release(x, y):
 def parse_apt_policy():
     data = []
     
-    C_env = os.environ.copy(); C_env['LC_ALL'] = 'C'
+    C_env = os.environ.copy(); C_env['LC_ALL'] = 'C.UTF-8'
     policy = subprocess.Popen(['apt-cache','policy'],
                               env=C_env,
                               stdout=subprocess.PIPE,
@@ -225,7 +190,7 @@ def parse_apt_policy():
 def guess_release_from_apt(origin='Debian', component='main',
                            ignoresuites=('experimental'),
                            label='Debian',
-                           alternate_olabels={'Debian Ports':'ftp.debian-ports.org'}):
+                           alternate_olabels={'Debian Ports': ('ftp.ports.debian.org', 'ftp.debian-ports.org')}):
     releases = parse_apt_policy()
 
     if not releases:
@@ -234,10 +199,11 @@ def guess_release_from_apt(origin='Debian', component='main',
     # We only care about the specified origin, component, and label
     releases = [x for x in releases if (
         x[1].get('origin', '') == origin and
+        x[1].get('suite', '') not in ignoresuites and
         x[1].get('component', '') == component and
         x[1].get('label', '') == label) or (
         x[1].get('origin', '') in alternate_olabels and
-        x[1].get('label', '') == alternate_olabels.get(x[1].get('origin', '')))]
+        x[1].get('label', '') in alternate_olabels.get(x[1].get('origin', '')))]
 
     # Check again to make sure we didn't wipe out all of the releases
     if not releases:
@@ -275,6 +241,9 @@ def guess_debian_release():
         except IOError as msg:
             print('Unable to open ' + etc_dpkg_origins_default + ':', str(msg), file=sys.stderr)
 
+    # Populate RELEASES_ORDER for the correct distro
+    get_distro_info(distinfo['ID'])
+
     kern = os.uname()[0]
     if kern in ('Linux', 'Hurd', 'NetBSD'):
         distinfo['OS'] = 'GNU/'+kern
@@ -301,7 +270,7 @@ def guess_debian_release():
             codename = lookup_codename(release, 'n/a')
             distinfo.update({ 'RELEASE' : release, 'CODENAME' : codename })
         elif release.endswith('/sid'):
-            if release.rstrip('/sid').lower().isalpha() != 'testing':
+            if release.rstrip('/sid').lower() != 'testing':
                 global TESTING_CODENAME
                 TESTING_CODENAME = release.rstrip('/sid')
             distinfo['RELEASE'] = 'testing/unstable'
@@ -322,7 +291,7 @@ def guess_debian_release():
         release = rinfo.get('version')
 
         # Special case Debian-Ports as their Release file has 'version': '1.0'
-        if release == '1.0' and rinfo.get('origin') == 'Debian Ports' and rinfo.get('label') == 'ftp.debian-ports.org':
+        if release == '1.0' and rinfo.get('origin') == 'Debian Ports' and rinfo.get('label') in ('ftp.ports.debian.org', 'ftp.debian-ports.org'):
             release = None
             rinfo.update({'suite': 'unstable'})
 
