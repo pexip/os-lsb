@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 # LSB release detection module for Debian
-# (C) 2005-09 Chris Lawrence <lawrencc@debian.org>
+# (C) 2005-10 Chris Lawrence <lawrencc@debian.org>
 
 #    This package is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -14,13 +14,17 @@
 
 #    You should have received a copy of the GNU General Public License
 #    along with this package; if not, write to the Free Software
-#    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
-#    02111-1307, USA.
+#    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+#    02110-1301 USA
+
+# Python3-compatible print() function
+from __future__ import print_function
 
 import sys
+import subprocess
 import os
 import re
-import subprocess
+import warnings
 
 # XXX: Update as needed
 # This should really be included in apt-cache policy output... it is already
@@ -36,20 +40,31 @@ RELEASE_CODENAME_LOOKUP = {
     '3.1' : 'sarge',
     '4.0' : 'etch',
     '5.0' : 'lenny',
+    '6.0' : 'squeeze',
+    '7'   : 'wheezy',
+    '8'   : 'jessie',
     }
 
 TESTING_CODENAME = 'unknown.new.testing'
+
+RELEASES_ORDER = list(RELEASE_CODENAME_LOOKUP.items())
+RELEASES_ORDER.sort()
+RELEASES_ORDER = list(list(zip(*RELEASES_ORDER))[1])
+RELEASES_ORDER.extend(['stable', 'testing', 'unstable', 'sid'])
 
 def lookup_codename(release, unknown=None):
     m = re.match(r'(\d+)\.(\d+)(r(\d+))?', release)
     if not m:
         return unknown
 
-    shortrelease = '%s.%s' % m.group(1,2)
+    if int(m.group(1)) < 7:
+        shortrelease = '%s.%s' % m.group(1,2)
+    else:
+        shortrelease = '%s' % m.group(1)
     return RELEASE_CODENAME_LOOKUP.get(shortrelease, unknown)
 
 # LSB compliance packages... may grow eventually
-PACKAGES = 'lsb-core lsb-cxx lsb-graphics lsb-desktop lsb-qt4 lsb-languages lsb-multimedia lsb-printing'
+PACKAGES = 'lsb-core lsb-cxx lsb-graphics lsb-desktop lsb-languages lsb-multimedia lsb-printing lsb-security'
 
 modnamere = re.compile(r'lsb-(?P<module>[a-z0-9]+)-(?P<arch>[^ ]+)(?: \(= (?P<version>[0-9.]+)\))?')
 
@@ -61,6 +76,8 @@ def valid_lsb_versions(version, module):
     elif version == '3.1':
         if module in ('desktop', 'qt4'):
             return ['3.1']
+        elif module == 'cxx':
+            return ['3.0', '3.1']
         else:
             return ['2.0', '3.0', '3.1']
     elif version == '3.2':
@@ -87,6 +104,20 @@ def valid_lsb_versions(version, module):
             return ['3.0', '3.1', '3.2', '4.0']
         else:
             return ['2.0', '3.0', '3.1', '3.2', '4.0']
+    elif version == '4.1':
+        if module == 'desktop':
+            return ['3.1', '3.2', '4.0', '4.1']
+        elif module == 'qt4':
+            return ['3.1']
+        elif module in ('printing', 'languages', 'multimedia'):
+            return ['3.2', '4.0', '4.1']
+        elif module == 'security':
+            return ['4.0', '4.1']
+        elif module == 'cxx':
+            return ['3.0', '3.1', '3.2', '4.0', '4.1']
+        else:
+            return ['2.0', '3.0', '3.1', '3.2', '4.0', '4.1']
+
 
     return [version]
 
@@ -112,9 +143,10 @@ def check_modules_installed():
     modules = set()
     for line in output.split(os.linesep):
         if not line:
-            break
+           break
         version, provides = line.split(' ', 1)
-        version = version.split('-', 1)[0]
+        # Debian package versions can be 3.2-$REV, 3.2+$REV or 3.2~$REV.
+        version = re.split('[-+~]', version, 1)[0]
         for pkg in provides.split(','):
             mob = modnamere.search(pkg)
             if not mob:
@@ -150,6 +182,25 @@ def parse_policy_line(data):
                 retval[longnames[k]] = v
     return retval
 
+def release_index(x):
+    suite = x[1].get('suite')
+    if suite:
+        if suite in RELEASES_ORDER:
+            return int(len(RELEASES_ORDER) - RELEASES_ORDER.index(suite))
+        else:
+            return suite
+    return 0
+
+def compare_release(x, y):
+    warnings.warn('compare_release(x,y) is deprecated; please use the release_index(x) as key for sort() instead.', DeprecationWarning, stacklevel=2)
+    suite_x_i = release_index(x)
+    suite_y_i = release_index(y)
+    
+    try:
+        return suite_x_i - suite_y_i
+    except TypeError:
+        return (suite_x_i > suite_y_i) - (suite_x_i < suite_y_i)
+
 def parse_apt_policy():
     data = []
     
@@ -161,7 +212,7 @@ def parse_apt_policy():
                               close_fds=True).communicate()[0].decode('utf-8')
     for line in policy.split('\n'):
         line = line.strip()
-        m = re.match(r'(\d+)', line)
+        m = re.match(r'(-?\d+)', line)
         if m:
             priority = int(m.group(1))
         if line.startswith('release'):
@@ -173,7 +224,8 @@ def parse_apt_policy():
 
 def guess_release_from_apt(origin='Debian', component='main',
                            ignoresuites=('experimental'),
-                           label='Debian'):
+                           label='Debian',
+                           alternate_olabels={'Debian Ports':'ftp.debian-ports.org'}):
     releases = parse_apt_policy()
 
     if not releases:
@@ -183,39 +235,65 @@ def guess_release_from_apt(origin='Debian', component='main',
     releases = [x for x in releases if (
         x[1].get('origin', '') == origin and
         x[1].get('component', '') == component and
-        x[1].get('label', '') == label)]
+        x[1].get('label', '') == label) or (
+        x[1].get('origin', '') in alternate_olabels and
+        x[1].get('label', '') == alternate_olabels.get(x[1].get('origin', '')))]
 
     # Check again to make sure we didn't wipe out all of the releases
     if not releases:
         return None
     
-    releases.sort()
-    releases.reverse()
+    releases.sort(key=lambda tuple: tuple[0],reverse=True)
 
     # We've sorted the list by descending priority, so the first entry should
     # be the "main" release in use on the system
 
+    max_priority = releases[0][0]
+    releases = [x for x in releases if x[0] == max_priority]
+    releases.sort(key=release_index)
+
     return releases[0][1]
 
 def guess_debian_release():
-    distinfo = {'ID' : 'Debian'}
+    distinfo = {}
+
+    distinfo['ID'] = 'Debian'
+    # Use /etc/dpkg/origins/default to fetch the distribution name
+    etc_dpkg_origins_default = os.environ.get('LSB_ETC_DPKG_ORIGINS_DEFAULT','/etc/dpkg/origins/default')
+    if os.path.exists(etc_dpkg_origins_default):
+        try:
+            with open(etc_dpkg_origins_default) as dpkg_origins_file:
+                for line in dpkg_origins_file:
+                    try:
+                        (header, content) = line.split(': ', 1)
+                        header = header.lower()
+                        content = content.strip()
+                        if header == 'vendor':
+                            distinfo['ID'] = content
+                    except ValueError:
+                        pass
+        except IOError as msg:
+            print('Unable to open ' + etc_dpkg_origins_default + ':', str(msg), file=sys.stderr)
 
     kern = os.uname()[0]
     if kern in ('Linux', 'Hurd', 'NetBSD'):
         distinfo['OS'] = 'GNU/'+kern
     elif kern == 'FreeBSD':
         distinfo['OS'] = 'GNU/k'+kern
+    elif kern in ('GNU/Linux', 'GNU/kFreeBSD'):
+        distinfo['OS'] = kern
     else:
         distinfo['OS'] = 'GNU'
 
     distinfo['DESCRIPTION'] = '%(ID)s %(OS)s' % distinfo
 
-    if os.path.exists('/etc/debian_version'):
+    etc_debian_version = os.environ.get('LSB_ETC_DEBIAN_VERSION','/etc/debian_version')
+    if os.path.exists(etc_debian_version):
         try:
-            with open('/etc/debian_version') as debian_version:
+            with open(etc_debian_version) as debian_version:
                 release = debian_version.read().strip()
-        except IOError, msg:
-            print >> sys.stderr, 'Unable to open /etc/debian_version:', str(msg)
+        except IOError as msg:
+            print('Unable to open ' + etc_debian_version + ':', str(msg), file=sys.stderr)
             release = 'unknown'
             
         if not release[0:1].isalpha():
@@ -238,9 +316,16 @@ def guess_debian_release():
     # This is slightly faster and less error prone in case the user
     # has an entry in his /etc/apt/sources.list but has not actually
     # upgraded the system.
-    rinfo = guess_release_from_apt()
-    if rinfo and not distinfo.get('CODENAME'):
+    if not distinfo.get('CODENAME'):
+      rinfo = guess_release_from_apt()
+      if rinfo:
         release = rinfo.get('version')
+
+        # Special case Debian-Ports as their Release file has 'version': '1.0'
+        if release == '1.0' and rinfo.get('origin') == 'Debian Ports' and rinfo.get('label') == 'ftp.debian-ports.org':
+            release = None
+            rinfo.update({'suite': 'unstable'})
+
         if release:
             codename = lookup_codename(release, 'n/a')
         else:
@@ -262,9 +347,10 @@ def guess_debian_release():
 # Whatever is guessed above can be overridden in /etc/lsb-release
 def get_lsb_information():
     distinfo = {}
-    if os.path.exists('/etc/lsb-release'):
+    etc_lsb_release = os.environ.get('LSB_ETC_LSB_RELEASE','/etc/lsb-release')
+    if os.path.exists(etc_lsb_release):
         try:
-            with open('/etc/lsb-release') as lsb_release_file:
+            with open(etc_lsb_release) as lsb_release_file:
                 for line in lsb_release_file:
                     line = line.strip()
                     if not line:
@@ -278,9 +364,9 @@ def get_lsb_information():
                         if arg.startswith('"') and arg.endswith('"'):
                             arg = arg[1:-1]
                         if arg: # Ignore empty arguments
-                            distinfo[var] = arg
-        except IOError, msg:
-            print >> sys.stderr, 'Unable to open /etc/lsb-release:', str(msg)
+                            distinfo[var] = arg.strip()
+        except IOError as msg:
+            print('Unable to open ' + etc_lsb_release + ':', str(msg), file=sys.stderr)
             
     return distinfo
 
@@ -296,8 +382,8 @@ def get_distro_information():
         return lsbinfo
 
 def test():
-    print get_distro_information()
-    print check_modules_installed()
+    print(get_distro_information())
+    print(check_modules_installed())
 
 if __name__ == '__main__':
     test()
