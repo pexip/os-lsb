@@ -2,11 +2,11 @@
 
 derives_from_ubuntu := $(shell (dpkg-vendor --derives-from Ubuntu && echo "yes") || echo "no")
 
-PY2VERSIONS=$(shell pyversions -vr)
+PY2VERSIONS=$(shell [ -x /usr/bin/pyversions ] && pyversions -vr)
 PY3VERSIONS=$(shell [ -x /usr/bin/py3versions ] && py3versions -vr)
 
 %:
-	dh --with python2 $@
+	dh $@ --with python3
 
 # These are used for cross-compiling and for saving the configure script
 # from having to guess our platform (since we know it already)
@@ -47,19 +47,25 @@ override_dh_clean:
 	dh_clean
 	rm -f *.py[co]
 	rm -f debian/lsb-base.maintscript
+	rm -rf __pycache__
+	rm -rf test/__pycache__
 
-override_dh_auto_test: $(PY2VERSIONS:%=test-python%) $(PY3VERSIONS:%=test-python%)
-
-test-python2.6:
-	# Tests are not backported to python2.6, sorry.
+ifneq ($(filter nocheck,$(DEB_BUILD_OPTIONS)),)
+override_dh_auto_test:
+else
+override_dh_auto_test: $(PY3VERSIONS:%=test-python%) $(PY2VERSIONS:%=test-python%)
+endif
 
 test-python%:
 	PATH=test/:$${PATH} PYTHONPATH=. python$* test/test_lsb_release.py -vv
 	PYTHONPATH=. python$* test/test_initdutils.py -vv
+	rm -rf __pycache__
+	rm -rf test/__pycache__
+	rm -f test/debian_version_*
 
-override_dh_python2:
-	dh_python2
-	dh_python2 /usr/lib/lsb
+override_dh_python3:
+	dh_python3
+	dh_python3 /usr/lib/lsb
 
 override_dh_install:
 	dh_install
@@ -74,9 +80,8 @@ override_dh_installdeb:
 endif
 
 override_dh_gencontrol:
-	@echo >> debian/lsb-core.substvars "glibc=${LIBC}"
+	@echo >> debian/lsb-compat.substvars "glibc=${LIBC}"
 #	@[ ${DEB_HOST_GNU_TYPE} != 'arm-linux-gnueabi' ] && echo >> debian/lsb-cxx.substvars "depends=libstdc++5" || true
-	@echo >> debian/lsb-core.substvars "provides=lsb-core-${lsbarch}"
 	@echo >> debian/lsb-cxx.substvars "provides=lsb-cxx-${lsbarch}"
 	@echo >> debian/lsb-graphics.substvars "provides=lsb-graphics-${lsbarch}"
 	@echo >> debian/lsb-desktop.substvars "provides=lsb-qt4-${lsbarch}, lsb-desktop-${lsbarch}"
@@ -84,6 +89,6 @@ override_dh_gencontrol:
 	@echo >> debian/lsb-languages.substvars "provides=lsb-languages-${lsbarch}"
 	@echo >> debian/lsb-printing.substvars "provides=lsb-printing-${lsbarch}"
 	@echo >> debian/lsb-security.substvars "provides=lsb-security-${lsbarch}"
-	@[ ${DEB_HOST_ARCH} = 'amd64' ] && echo >> debian/lsb-core.substvars "depends=libc6:i386 | libc6-i386, zlib1g:i386 | lib32z1" || true
-	@[ ${DEB_HOST_ARCH} = 'kfreebsd-amd64' ] && echo >> debian/lsb-core.substvars "depends=libc0.1:kfreebsd-i386 | libc0.1-i386, zlib1g:kfreebsd-i386 | lib32z1" || true
+	@[ ${DEB_HOST_ARCH} = 'amd64' ] && echo >> debian/lsb-compat.substvars "depends=libc6:i386 | libc6-i386, zlib1g:i386 | lib32z1" || true
+	@[ ${DEB_HOST_ARCH} = 'kfreebsd-amd64' ] && echo >> debian/lsb-compat.substvars "depends=libc0.1:kfreebsd-i386 | libc0.1-i386, zlib1g:kfreebsd-i386 | lib32z1" || true
 	dh_gencontrol

@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # coding=utf-8
-from __future__ import unicode_literals
 
 import unittest
 
@@ -92,13 +91,6 @@ class TestLSBRelease(unittest.TestCase):
 		self.assertEqual(lr.check_modules_installed(),[])
 		os.environ.pop('TEST_DPKG_QUERY_NONE')
 
-		# Test with all packages available.
-		supposed_output = [pkg[4::] + '-9.8-TESTarch' for pkg in lr.PACKAGES.split(' ')]
-		supposed_output += [pkg[4::] + '-9.8-noarch' for pkg in lr.PACKAGES.split(' ')]
-		supposed_output.sort()
-		os.environ['TEST_DPKG_QUERY_ALL'] = '1'
-		self.assertEqual(sorted(lr.check_modules_installed()),supposed_output)
-
 	def test_parse_policy_line(self):
 		release_line = ''
 		shortnames = list(lr.longnames.keys())
@@ -109,38 +101,6 @@ class TestLSBRelease(unittest.TestCase):
 			release_line += shortname + '=' + longnames[lr.longnames[shortname]] + ','
 		release_line = release_line[:-1]
 		self.assertEqual(sorted(lr.parse_policy_line(release_line)),sorted(longnames),'parse_policy_line(' + release_line + ')')
-
-	def test_sort_releases(self):
-		# Compare suites with random suite names
-		releases = []
-		suites = []
-		for i in range(random.randint(5,40)):
-			suite_name = rnd_string(8,25)
-			suites.append(suite_name)
-			releases.append([rnd_string(1,12), {'suite': suite_name}])
-		suites.sort()
-		if sys.version_info[0] == '2':
-			suites_from_releases     = [x[1]['suite'] for x in sorted(releases,lr.compare_release)]
-			self.assertEqual(suites,suites_from_releases)
-		suites_from_releases_new = [x[1]['suite'] for x in sorted(releases,key=lr.release_index)]
-		self.assertEqual(suites,suites_from_releases_new)
-
-		# Compare suites with known suite names
-		releases = []
-		suites = []
-		RO_min = 0
-		RO_max = len(lr.RELEASES_ORDER) - 1
-		for i in range(random.randint(5,7)):
-			suite_i = random.randint(RO_min,RO_max)
-			suite_name = lr.RELEASES_ORDER[suite_i]
-			suites.append(suite_name)
-			releases.append([rnd_string(1,12), {'suite': suite_name}])
-		suites.sort(key=lambda suite: int(lr.RELEASES_ORDER.index(suite)),reverse=True)
-		if sys.version_info[0] == '2':
-			suites_from_releases     = [x[1]['suite'] for x in sorted(releases,lr.compare_release)]
-			self.assertEqual(suites,suites_from_releases)
-		suites_from_releases_new = [x[1]['suite'] for x in sorted(releases,key=lr.release_index)]
-		self.assertEqual(suites,suites_from_releases_new)
 
 	def test_compare_release(self):
 		# Test that equal suite strings lead to 0
@@ -160,14 +120,6 @@ class TestLSBRelease(unittest.TestCase):
 		self.assertEqual(lr.compare_release(x,y),
 				 supposed_output,
 				 'compare_release(' + x[1]['suite'] + ',' + y[1]['suite'] + ') =? ' + str(supposed_output))
-		
-		# Test that sequences not in RELEASES_ORDER lead to reliable output
-		x[1]['suite'] = rnd_string(1,12)
-		y[1]['suite'] = rnd_string(1,12)
-		supposed_output = (x[1]['suite'] > y[1]['suite']) - (x[1]['suite'] < y[1]['suite'])
-		self.assertEqual(lr.compare_release(x,y),
-				 supposed_output,
-				 'compare_release(' + x[1]['suite'] + ',' + y[1]['suite'] + ') =? ' + str(supposed_output))
 
 	def test_parse_apt_policy(self):
 		# Test almost-empty apt-cache policy
@@ -183,7 +135,7 @@ class TestLSBRelease(unittest.TestCase):
 		self.assertEqual(lr.parse_apt_policy(),supposed_output)
 		# Add a third fake entry, unordered, with non-ascii chars (#675618)
 		os.environ['TEST_APT_CACHE3'] = '754'
-		supposed_output.append((754, {'origin': 'Jérôme Helvète', 'suite': '5uiTe', 'component': 'C03p0nent', 'label': '1ABel'}))
+		supposed_output.append((754, {'origin': u'Jérôme Helvète', 'suite': '5uiTe', 'component': 'C03p0nent', 'label': '1ABel'}))
 		self.assertEqual(lr.parse_apt_policy(),supposed_output)
 		os.environ.pop('TEST_APT_CACHE1')
 		os.environ.pop('TEST_APT_CACHE2')
@@ -211,7 +163,7 @@ class TestLSBRelease(unittest.TestCase):
 				label='l8bel',
 				component='c0mp0nent',
 				ignoresuites=('c0mp0nentIgn'),
-				alternate_olabels={'P-or1g1n':'P-l8bel'}),
+				alternate_olabels={'P-or1g1n': ('P-l8bel', 'P-l9bel')}),
 			supposed_output)
 		os.environ.pop('TEST_APT_CACHE1')
 		os.environ.pop('TEST_APT_CACHE2')
@@ -303,21 +255,23 @@ class TestLSBRelease(unittest.TestCase):
 			os.remove(fn)
 		os.environ.pop('LSB_ETC_DEBIAN_VERSION')
 
-		# Test "unstable releases with Debian Ports" that end in /sid, go read valid apt-cache policy
-		os.environ['TEST_APT_CACHE_UNSTABLE_PORTS'] = '500'
 		distinfo['CODENAME'] = 'sid'
 		distinfo['RELEASE'] = 'unstable'
 		distinfo['DESCRIPTION'] = '%(ID)s %(OS)s %(RELEASE)s (%(CODENAME)s)' % distinfo
-		for rno in lr.RELEASE_CODENAME_LOOKUP:
-			fn = 'test/debian_version_' + rnd_string(5,12)
-			f = open(fn,'w')
-			f.write(lr.RELEASE_CODENAME_LOOKUP[rno] + '/sid')
-			f.close()
-			os.environ['LSB_ETC_DEBIAN_VERSION'] = fn
-			self.assertEqual(lr.guess_debian_release(),distinfo)
-			os.remove(fn)
+
+		for CODE in ('PORTS', 'PORTS_OLD'):
+			# Test "unstable releases with Debian Ports" that end in /sid, go read valid apt-cache policy
+			os.environ['TEST_APT_CACHE_UNSTABLE_' + CODE] = '500'
+			for rno in lr.RELEASE_CODENAME_LOOKUP:
+				fn = 'test/debian_version_' + rnd_string(5,12)
+				f = open(fn,'w')
+				f.write(lr.RELEASE_CODENAME_LOOKUP[rno] + '/sid')
+				f.close()
+				os.environ['LSB_ETC_DEBIAN_VERSION'] = fn
+				self.assertEqual(lr.guess_debian_release(),distinfo)
+				os.remove(fn)
+			os.environ.pop('TEST_APT_CACHE_UNSTABLE_' + CODE)
 		os.environ.pop('LSB_ETC_DEBIAN_VERSION')
-		os.environ.pop('TEST_APT_CACHE_UNSTABLE_PORTS')
 		os.environ.pop('TEST_APT_CACHE_UNSTABLE')
 
 	def test_get_lsb_information(self):
@@ -333,6 +287,13 @@ class TestLSBRelease(unittest.TestCase):
 		os.environ['LSB_ETC_LSB_RELEASE'] = 'test/lsb-release'
 		self.assertEqual(lr.get_lsb_information(),supposed_output)
 		os.environ.pop('LSB_ETC_LSB_RELEASE')
+
+	def test_get_distro_information_no_distinfo_file(self):
+		# Test that a missing /usr/share/distro-info/{distro}.csv indeed falls
+		# back on Debian's information
+		debian_info = lr.get_distro_info()
+		other_distro_info = lr.get_distro_info(origin='x-not-debian')
+		self.assertEqual(debian_info, other_distro_info)
 
 	def test_get_distro_information(self):
 		# Test that an inexistant /etc/lsb-release leads to empty output

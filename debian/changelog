@@ -1,3 +1,101 @@
+lsb (9.20161125) unstable; urgency=medium
+
+  [ Didier Raboud ]
+  * Test the distro-info non-Debian fallback, to fix #845489
+  * Also run the tests for all pyversions (Python 2.7 only)
+  * Fix regressions on python2 (Closes: #845489)
+
+  [ Philipp Hahn ]
+  * Strip leading spaces in get_lsb_header_val (Closes: #837639)
+
+ -- Didier Raboud <odyx@debian.org>  Fri, 25 Nov 2016 16:15:24 +0100
+
+lsb (9.20161101) unstable; urgency=medium
+
+  [ Helmut Grohne ]
+  * Fix FTCBFS: Annotate Build-Depends: python3-all with :any (Closes: #841679)
+  * Add support for DEB_BUILD_OPTIONS=nocheck
+
+ -- Didier Raboud <odyx@debian.org>  Tue, 01 Nov 2016 22:00:00 +0100
+
+lsb (9.20161016) unstable; urgency=medium
+
+  * Introduce the new lsb-compat package, providing a limited compatibility
+    layer for some selected LSB packages
+    - Provides, and replaces lsb & lsb-core
+    - Should be sufficient to install and run:
+      - Epson printer drivers (LP: #1536353)
+      - Google Earth (Closes: #830481)
+
+ -- Didier Raboud <odyx@debian.org>  Sun, 16 Oct 2016 15:55:46 +0200
+
+lsb (9.20160629) unstable; urgency=medium
+
+  [ Helge Deller ]
+  * Update lsb_release.py to cope with the new Debian Ports' release label
+    (Closes: #827137)
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 29 Jun 2016 18:13:15 +0200
+
+lsb (9.20160601) unstable; urgency=medium
+
+  * Revert "Add 01-upstart-lsb from the upstart package, and make executing
+    rc.d scripts no-op if there is an upstart job for that script"
+    (Closes: #825946)
+  * Bump Standards-Version to 3.9.8 without changes needed
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 01 Jun 2016 08:46:56 +0200
+
+lsb (9.20160110) unstable; urgency=medium
+
+  * Merge the last Ubuntu diff
+
+  [ Stéphane Graber & Dimitri John Ledkov ]
+  * Add 01-upstart-lsb from the upstart package, and make executing rc.d
+    scripts no-op if there is an upstart job for that script
+
+ -- Didier Raboud <odyx@debian.org>  Sun, 10 Jan 2016 12:32:59 +0100
+
+lsb (9.20150917) unstable; urgency=medium
+
+  * Demote Build-Depends from python3-all-dev to python3-all (Closes: #799210)
+
+ -- Didier Raboud <odyx@debian.org>  Thu, 17 Sep 2015 10:10:29 +0200
+
+lsb (9.20150826) unstable; urgency=low
+
+  * Drop all the LSB compatibility packages besides lsb-release and lsb-base
+    - Drop packages-availability checking in lsb-release
+    - Truncate README.Debian to a minimum
+    - Document this in lsb-base.NEWS.Debian
+  * Change the versioning number to avoid any ambiguity; use joeyh's
+    version.date, with version being Debian next stable's
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 26 Aug 2015 12:00:00 +0200
+
+lsb (4.1+Debian14) unstable; urgency=low
+
+  [ Alexandre Detiste ]
+  * Convert packaging to Debhelper 9
+  * Port to python3, keep compatibility symlink for lsb_release.py
+    (Closes: #719063)
+
+  [ Mert Dirik ]
+  * Add Turkish translation of lsb debconf messages (Closes: #757509)
+
+  [ Didier Raboud ]
+  * Add gbp.conf
+  * Rework the releases codename handling:
+    - Depend and Build-Depend on distro-info-data, and populate the
+      RELEASES_CODENAME_LOOKUP from that reference
+    - Drop meaningless tests trying to compare random release names
+  * Make sure '-proposed-updates' don't sort before unstable
+  * Actuall ignore suites when guessing the release from apt
+  * Fix comparison of testing codename (Closes: #691744)
+  * Bump Standards-Version to 3.9.6 without changes needed
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 12 Aug 2015 17:09:55 +0200
+
 lsb (4.1+Debian13+nmu1pexip1) pexip; urgency=low
 
   * Migrate to Jessie
