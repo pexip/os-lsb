@@ -1,3 +1,9 @@
+lsb (10.2019051400pexip1) pexip; urgency=medium
+
+  * Migrate to Buster
+
+ -- Vincent Sanders <vince@pexip.com>  Sat, 29 Feb 2020 16:20:36 +0000
+
 lsb (10.2019051400) unstable; urgency=medium
 
   [ Harald Dunkel ]
