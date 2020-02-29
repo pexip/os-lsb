@@ -1,3 +1,51 @@
+lsb (10.2019051400) unstable; urgency=medium
+
+  [ Harald Dunkel ]
+  * pidofproc: use "pidof -c" to avoid pidofproc results from containers or chroots
+    (Closes: #888743)
+
+ -- Didier Raboud <odyx@debian.org>  Tue, 14 May 2019 08:50:39 +0200
+
+lsb (10.2019031300) unstable; urgency=low
+
+  [ Dmitry Bogatov ]
+  * init-functions: in killproc, pass '--name' to start-stop-daemon
+    (Closes: #921558)
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 13 Mar 2019 21:42:26 +0100
+
+lsb (10.2018112800) unstable; urgency=medium
+
+  * Remove support for /etc/lsb-release in favour of /usr/lib/os-release
+    (Closes: #914287)
+  * Rephrase lsb-release's README.Debian
+
+  * Packaging cleanup
+    - Bump S-V without changes needed
+    - Bump debhelper compat to 11
+    - Move Vcs to Salsa, update Vcs-*
+    - Drop obsolete X-Python3-Version from d/control
+    - d/copyright: use https URL
+
+ -- Didier Raboud <odyx@debian.org>  Wed, 28 Nov 2018 20:21:37 +0100
+
+lsb (9.20170808) unstable; urgency=medium
+
+  * Remove Jeff Licquia from Uploaders, with thanks for his past work
+    (Closes: #854224)
+  * Fix number-to-release typo in lsb-release's README.Debian (Closes: #862041)
+
+ -- Didier Raboud <odyx@debian.org>  Mon, 07 Aug 2017 10:50:21 -0400
+
+lsb (9.20170807) unstable; urgency=medium
+
+  * Remove the lsb-compat package to force migration away from LSB packages
+  * Update Homepage URL
+  * Update Vcs-* URLs for https counterparts
+  * Bump Standards-Version to 4.0.1
+
+ -- Didier Raboud <odyx@debian.org>  Mon, 07 Aug 2017 10:33:54 -0400
+
 lsb (9.20161125pexip1) pexip; urgency=medium
 
   * Migrate to Stretch
