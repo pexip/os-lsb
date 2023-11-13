@@ -1,3 +1,69 @@
+lsb (11.6) unstable; urgency=medium
+
+  * Team upload.
+  [ Adam Borowski ]
+  * Update README.Debian wrt lsb-base dematerialization; closes: #1030597.
+  [ Jelmer Vernooĳ ]
+  * Move transitional package lsb-base to oldlibs/optional.
+  * Bump debhelper from old 12 to 13.
+
+ -- Adam Borowski <kilobyte@angband.pl>  Sun, 05 Feb 2023 18:12:07 +0100
+
+lsb (11.5) unstable; urgency=medium
+
+  * Team upload.
+  * Drop lsb-release, taken over by src:lsb-release-minimal.
+
+ -- Adam Borowski <kilobyte@angband.pl>  Wed, 02 Nov 2022 01:41:43 +0100
+
+lsb (11.4) unstable; urgency=medium
+
+  * Team upload.
+  * lsb-base: add a dependency on sysvinit-utils 3.05-4 (Closes: #1019661)
+
+ -- Adam Borowski <kilobyte@angband.pl>  Tue, 13 Sep 2022 20:08:57 +0200
+
+lsb (11.3) unstable; urgency=medium
+
+  * Team upload.
+  * Make the lsb-base package empty; debootstrap doesn't understand
+    "Provides".
+
+ -- Adam Borowski <kilobyte@angband.pl>  Mon, 12 Sep 2022 20:54:36 +0200
+
+lsb (11.2) unstable; urgency=medium
+
+  * d/control: update to Standards Version 4.6.1 (no changes).
+
+ -- Mark Hindley <leepen@debian.org>  Mon, 23 May 2022 10:41:54 +0100
+
+lsb (11.2~rc1) experimental; urgency=medium
+
+  [ Mark Hindley ]
+  * Add myself to uploaders.
+  * Remove Dmitry Bogatov from uploaders (Closes: #991031).
+  * Update to Standards Version 4.6.0 (no changes).
+  * Remove obsolete python2 support (Closes: #1003625).
+  * d/control: add missing newline at end.
+  * Ignore strings when sorting release versions. (Closes: #980566)
+  * Suppress our own deprecation warning when testing compare_release().
+  * Catch exceptions from running apt-cache and warn but continue.
+    (Closes: #951651)
+  * lsb_release.1: remove reference to obsolete lsb(8). (Closes: #962969)
+
+
+  [ Trek ]
+  * Hardcode ANSI escapes to replace tput in logging functions.
+    Thanks to Adam Borowski <kilobyte@angband.pl>
+  * Fix the return value of vlog* functions when VERBOSE=no
+  * Preserve FANCYTTY after log_use_fancy_output calls
+  * Quote parameters when calling logging functions.
+    Thanks to Bjarni Ingi Gislason <bjarniig@rhi.hi.is> (Closes: #660790)
+  * Optimize killproc using parameter expansions.
+    Thanks to Carl Albing <carl-albing@bethel.edu>
+
+ -- Mark Hindley <leepen@debian.org>  Tue, 10 May 2022 17:57:45 +0100
+
 lsb (11.1.0pexip3) pexip-bullseye; urgency=medium
 
   * Bullseye rebuild for ARM64 inclusion
