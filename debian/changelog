@@ -1,3 +1,9 @@
+lsb (11.6pexip1) pexip-bookworm; urgency=medium
+
+  * Initial bookworm build
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Thu, 16 Nov 2023 10:11:52 +0000
+
 lsb (11.6) unstable; urgency=medium
 
   * Team upload.
