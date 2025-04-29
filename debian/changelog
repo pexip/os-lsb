@@ -1,3 +1,9 @@
+lsb (11.6+pexip25u1) pexip-trixie; urgency=medium
+
+  * Initial trixie build
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Tue, 29 Apr 2025 22:42:16 +0100
+
 lsb (11.6+pexip24u3) pexip-bookworm; urgency=medium
 
   * New versioning scheme
